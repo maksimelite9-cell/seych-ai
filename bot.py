@@ -24,10 +24,10 @@ VK_TOKEN = os.getenv('VK_GROUP_TOKEN')
 VK_GROUP_ID = int(os.getenv('VK_GROUP_ID', '0'))
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 ADMIN_VK_ID = int(os.getenv('ADMIN_VK_ID', '0'))
-RENDER_URL = os.getenv('RENDER_URL', 'https://seych-ai.onrender.com')
+RENDER_URL = os.getenv('RENDER_URL', 'https://seych-ai-wohy.onrender.com')
 DATABASE_URL = os.getenv('DATABASE_URL')
 
-CONFIRMATION_CODE = "eb59e42a"
+CONFIRMATION_CODE = "99beb802"
 PORT = int(os.getenv('PORT', 5000))
 
 # Настройка логирования
