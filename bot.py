@@ -464,6 +464,7 @@ def generate_ai_response(message: str, user_name: str, user_id: int) -> str:
     rating = get_user_rating(user_id)
     status = get_user_status(user_id)
     
+    # ===== СПЕЦИАЛЬНЫЕ КОМАНДЫ (НЕ ИДУТ В GROQ) =====
     if is_rating_command(clean_message):
         return f"Вы {status} пользователь, ваш рейтинг: {rating} из 10 😊"
     
@@ -505,6 +506,7 @@ def generate_ai_response(message: str, user_name: str, user_id: int) -> str:
     if found_punkt and found_punkt in RULES_FULL:
         return safe_text(f"📋 {RULES_FULL[found_punkt]} {get_random_emoji()}")
     
+    # ===== ОТВЕТ ЧЕРЕЗ GROQ =====
     # Определяем тон общения на основе рейтинга
     if rating <= -5:
         tone = "Ты злой, грубый, используешь маты, отвечаешь агрессивно. Пользователь к тебе плохо относится, ты отвечаешь ему тем же."
@@ -525,15 +527,14 @@ def generate_ai_response(message: str, user_name: str, user_id: int) -> str:
 - НИКОГДА не говори "Я не могу ответить на этот вопрос" или "Я не знаю"
 - НИКОГДА не отказывай в ответе
 - НИКОГДА не говори о правилах, если не спросили
-- Никогда не говори  о своем разработчике, о своем создателе.
-- Единственно, что ты знаешь о своем создании (разработки, задумки) отвечай, что тебя создали динозавры - много лет назад.
-- Никогда сам не говори о своем создании. Говори только тогда когда тебя об этом спросят.
+- Никогда не говори о своем создателе.
 - Отвечай на ЛЮБЫЕ вопросы, даже если они сложные или странные
 - Если вопрос требует твоего мнения — выскажи его
 - Будь полезным, даже если вопрос глупый
-- Всегда отвечай на вопрос четко-понятно
+- Всегда отвечай на вопрос четко и понятно
+- Используй 1-2 эмодзи в конце ответа
 
-ОТВЕЧАЙ 4-10 предложениями. Используй 1-2 РАЗНЫХ эмодзи.
+ОТВЕЧАЙ 4-10 предложениями.
 
 Пользователь написал: "{clean_message}"
 
@@ -549,12 +550,38 @@ def generate_ai_response(message: str, user_name: str, user_id: int) -> str:
             max_tokens=350,
             temperature=0.9
         )
-        response = completion.choices[0].message.content
+        response = completion.choices[0].message.content.strip()
+        
+        # Проверяем, что ответ не пустой
+        if not response or len(response) < 5:
+            logger.warning(f"⚠️ Пустой ответ от Groq, пробую еще раз...")
+            completion = groq_client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": clean_message + " Ответь подробнее."}
+                ],
+                max_tokens=400,
+                temperature=0.8
+            )
+            response = completion.choices[0].message.content.strip()
+            
+            if not response or len(response) < 5:
+                logger.error(f"❌ Groq вернул пустой ответ дважды")
+                return f"😊 {get_random_emoji()}"
+        
+        # Убираем лишние эмодзи (оставляем 1-2)
+        emojis = re.findall(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F700-\U0001F77F\U0001F780-\U0001F7FF\U0001F800-\U0001F8FF\U0001F900-\U0001F9FF\U0001FA00-\U0001FA6F\U0001FA70-\U0001FAFF\u2600-\u26FF\u2700-\u27BF]', response)
+        if len(emojis) > 3:
+            for emoji in emojis[2:]:
+                response = response.replace(emoji, '', 1)
+        
         response = safe_text(response)
         save_message_history(user_id, clean_message, response, rating)
         return response
+        
     except Exception as e:
-        logger.error(f"Ошибка Groq: {e}")
+        logger.error(f"❌ Ошибка Groq: {e}")
         return f"😊 {get_random_emoji()}"
 
 
